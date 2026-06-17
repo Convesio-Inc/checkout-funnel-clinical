@@ -1,22 +1,18 @@
 /**
  * ShippingInfo
  * -----------------------------------------------------------------------------
- * U.S. shipping address. Layout matches the reference:
- *   [First name] [Last name]
- *   [Street address          ]
- *   [Apt / Suite] [City       ]
- *   [State ▾    ] [ZIP        ]
+ * U.S. shipping address, AG1 layout:
+ *   [First name] [Family name]
+ *   [Street (icon)            ]
+ *   [Apt / suite] [City] [State] [ZIP]
+ * Fully controlled; country fixed to the U.S.
  *
- * Fully controlled; the parent owns state. Country is fixed to the U.S. (see
- * the note on the section header) so it isn't collected here. Edit labels,
- * placeholders, and the state list directly in this file.
- *
- * Markers:
- *   - field markers  data-field="first-name" | "last-name" | "street" |
- *                    "apt-suite" | "city" | "state" | "zip"
+ * Markers: data-field="first-name" | "last-name" | "street" | "apt-suite" |
+ *          "city" | "state" | "zip".
  * -----------------------------------------------------------------------------
  */
 
+import { Icon } from "@/components/icons";
 import { Field, inputCls } from "@/components/checkout/form-atoms";
 
 const US_STATES = [
@@ -50,90 +46,32 @@ export function ShippingInfo({ value, onChange }: ShippingInfoProps) {
       onChange({ ...value, [key]: e.target.value });
 
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-2 gap-4">
       <Field label="First name" span="col-span-1" dataField="first-name">
-        <input
-          className={inputCls}
-          type="text"
-          autoComplete="given-name"
-          placeholder="Alex"
-          required
-          value={value.firstName}
-          onChange={set("firstName")}
-        />
+        <input className={inputCls} type="text" autoComplete="given-name" placeholder="Alex" required value={value.firstName} onChange={set("firstName")} />
       </Field>
-      <Field label="Last name" span="col-span-1" dataField="last-name">
-        <input
-          className={inputCls}
-          type="text"
-          autoComplete="family-name"
-          placeholder="Mendez"
-          required
-          value={value.lastName}
-          onChange={set("lastName")}
-        />
+      <Field label="Family name" span="col-span-1" dataField="last-name">
+        <input className={inputCls} type="text" autoComplete="family-name" placeholder="Mendez" required value={value.lastName} onChange={set("lastName")} />
       </Field>
-      <Field label="Street address" dataField="street">
-        <input
-          className={inputCls}
-          type="text"
-          autoComplete="address-line1"
-          placeholder="2114 Larkspur Lane"
-          required
-          value={value.street}
-          onChange={set("street")}
-        />
+      <Field label="Street" icon={<Icon.Pin className="w-4 h-4" />} dataField="street">
+        <input className={inputCls} type="text" autoComplete="address-line1" placeholder="2114 Larkspur Lane" required value={value.street} onChange={set("street")} />
       </Field>
-      <Field label="Apt / Suite" span="col-span-1" optional dataField="apt-suite">
-        <input
-          className={inputCls}
-          type="text"
-          autoComplete="address-line2"
-          placeholder="—"
-          value={value.aptSuite}
-          onChange={set("aptSuite")}
-        />
+      <Field label="Apt / suite" span="col-span-1" optional dataField="apt-suite">
+        <input className={inputCls} type="text" autoComplete="address-line2" placeholder="—" value={value.aptSuite} onChange={set("aptSuite")} />
       </Field>
       <Field label="City" span="col-span-1" dataField="city">
-        <input
-          className={inputCls}
-          type="text"
-          autoComplete="address-level2"
-          placeholder="Portland"
-          required
-          value={value.city}
-          onChange={set("city")}
-        />
+        <input className={inputCls} type="text" autoComplete="address-level2" placeholder="Portland" required value={value.city} onChange={set("city")} />
       </Field>
       <Field label="State" span="col-span-1" dataField="state">
-        <select
-          className={inputCls}
-          autoComplete="address-level1"
-          required
-          value={value.stateOrProvince}
-          onChange={set("stateOrProvince")}
-        >
-          <option value="" disabled>
-            State
-          </option>
+        <select className={inputCls} autoComplete="address-level1" required value={value.stateOrProvince} onChange={set("stateOrProvince")}>
+          <option value="" disabled>State</option>
           {US_STATES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
+            <option key={s} value={s}>{s}</option>
           ))}
         </select>
       </Field>
       <Field label="ZIP" span="col-span-1" dataField="zip">
-        <input
-          className={inputCls}
-          type="text"
-          inputMode="numeric"
-          autoComplete="postal-code"
-          placeholder="97214"
-          required
-          value={value.zip}
-          onChange={set("zip")}
-        />
+        <input className={inputCls} type="text" inputMode="numeric" autoComplete="postal-code" placeholder="97214" required value={value.zip} onChange={set("zip")} />
       </Field>
     </div>
   );
