@@ -178,12 +178,12 @@ Migrations live under `worker/db/migrations/`.
 Three layers in increasing depth — only go deeper than you need:
 
 1. **Copy / prices / images** → edit the component or page directly. Every user-visible string, price and image lives inline in the file that renders it. Key locations:
-   - Brand name, nav links → `src/components/site/SiteHeader.tsx`
+   - Top rail (brand mark, countdown timer, live viewers) → `src/components/site/UrgencyRail.tsx`
    - Footer copy → `src/components/site/SiteFooter.tsx`
-   - Checkout section headings, payment amount (`AMOUNT_MINOR`), product SKU/name → `src/pages/CheckoutPage.tsx`
-   - Countdown timer start values → `src/components/checkout/CheckoutTimer.tsx`
+   - Checkout section headings, product SKU/name → `src/pages/CheckoutPage.tsx`
+   - Bundle options and pricing → `src/hooks/bundles.ts`
    - Customer / shipping / payment form labels → the matching component in `src/components/checkout/`
-   - Country list in shipping form → `COUNTRIES` constant in `src/components/checkout/ShippingInfo.tsx`
+   - State list in shipping form → `US_STATES` constant in `src/components/checkout/ShippingInfo.tsx`
    - Order summary product, prices, CTA → `src/components/checkout/OrderSummaryCard.tsx`
    - Thank-you page copy, upsell offer → `src/pages/ThankYouPage.tsx` (`UPSELL_PRODUCT = null` disables the banner)
 2. **Brand colors** → `/* === BRAND THEME === */` block in `src/index.css`.
@@ -191,8 +191,7 @@ Three layers in increasing depth — only go deeper than you need:
 
 Section component families:
 
-- `src/components/checkout/` — `CheckoutHeader`, `CheckoutTimer`, `CustomerInfoCard`, `ShippingInfoCard`, `PaymentInfoCard`, `OrderSummaryCard`, `CheckoutFooter`, `PaymentStatusDialog`, plus `primitives/` (`SectionCard`, `PriceRow`, `SecureBadge`, `GuaranteeBadge`).
-- `src/components/product/` — `ProductHeader`, `ProductHero`, `ProductCopySection`.
+- `src/components/checkout/` — `BundleSelector`, `CustomerInfo`, `ShippingInfo`, `PaymentInfo`, `OrderSummaryCard`, `PaymentStatusDialog`, `form-atoms`, plus `primitives/` (`SectionCard`, `PriceRow`).
 - `src/components/thank-you/` — `ThankYouHeader`, `OrderConfirmationCard`, `NextStepsCard`, `UpsellOfferBanner`, `UpsellCheckoutModal`.
 - `src/components/orders/` — admin orders table, row, drawer, pagination, status pill.
 - `src/components/users/` — admin user table, row, add dialog, role select, role pill.

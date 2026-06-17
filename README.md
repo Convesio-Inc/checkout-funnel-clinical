@@ -1,4 +1,4 @@
-# Convesio Fulfillment Checkout V2
+# Convesio Fulfillment Checkout V4
 
 A production-ready **single-page application** that renders an **integrated ConvesioPay checkout**, ready to deploy on [Convesio Static Sites](https://convesio.com).
 It features native integrations with FullStack CartRover API + SendGrid API, so every 2 hours orders are synced with CartRover, and the customers are emailed through SendGrid.
@@ -9,7 +9,7 @@ Built with **React 19**, **TypeScript**, **Vite**, **Tailwind CSS v4** and **sha
 
 ## Table of Contents
 
-- [Convesio Fulfillment Checkout V2](#convesio-fulfillment-checkout-v4)
+- [Convesio Fulfillment Checkout V4](#convesio-fulfillment-checkout-v4)
   - [Table of Contents](#table-of-contents)
   - [Features](#features)
   - [How it Works](#how-it-works)
@@ -271,15 +271,14 @@ Each component starts with a JSDoc header that describes what it renders and lis
 
 | What you want to change | File to edit |
 |---|---|
-| Top navigation bar (brand name, nav links) | `src/components/site/SiteHeader.tsx` |
+| Top rail (brand mark, countdown, live viewers) | `src/components/site/UrgencyRail.tsx` |
 | Footer copy | `src/components/site/SiteFooter.tsx` |
-| Checkout section headings, payment amount, product SKU/name | `src/pages/CheckoutPage.tsx` |
-| Countdown timer (start time, lead text) | `src/components/checkout/CheckoutTimer.tsx` |
+| Checkout section headings, product SKU/name | `src/pages/CheckoutPage.tsx` |
+| Bundle options and pricing | `src/hooks/bundles.ts` |
 | Customer form labels and placeholders | `src/components/checkout/CustomerInfo.tsx` |
-| Shipping form labels, placeholders, and country list | `src/components/checkout/ShippingInfo.tsx` |
+| Shipping form labels, placeholders, and state list | `src/components/checkout/ShippingInfo.tsx` |
 | Payment form loading/error messages | `src/components/checkout/PaymentInfo.tsx` |
-| Order summary sidebar (product, prices, CTA label, footnote) | `src/components/checkout/OrderSummaryCard.tsx` |
-| Product page content | `src/pages/ProductPage.tsx` |
+| Order summary + CTA (product, prices, CTA label, footnote) | `src/components/checkout/OrderSummaryCard.tsx` |
 | Thank-you page content, upsell offer | `src/pages/ThankYouPage.tsx` |
 
 Replace placeholder images in `public/` and update the `src` paths in the relevant component.
@@ -319,21 +318,12 @@ Each section of every page lives in its own component. Compose or reorder them i
 
 | Component             | File                                              |
 | --------------------- | ------------------------------------------------- |
-| `CheckoutHeader`      | `src/components/checkout/CheckoutHeader.tsx`      |
-| `CheckoutTimer`       | `src/components/checkout/CheckoutTimer.tsx`       |
+| `BundleSelector`      | `src/components/checkout/BundleSelector.tsx`      |
 | `CustomerInfo`        | `src/components/checkout/CustomerInfo.tsx`        |
 | `ShippingInfo`        | `src/components/checkout/ShippingInfo.tsx`        |
 | `PaymentInfo`         | `src/components/checkout/PaymentInfo.tsx`         |
 | `OrderSummaryCard`    | `src/components/checkout/OrderSummaryCard.tsx`    |
 | `PaymentStatusDialog` | `src/components/checkout/PaymentStatusDialog.tsx` |
-| `UpsellOfferBanner`   | `src/components/checkout/UpsellOfferBanner.tsx`   |
-
-**Product page** (`src/pages/ProductPage.tsx`):
-
-| Component            | File                                            |
-| -------------------- | ----------------------------------------------- |
-| `ProductHero`        | `src/components/product/ProductHero.tsx`        |
-| `ProductCopySection` | `src/components/product/ProductCopySection.tsx` |
 
 **Thank You page** (`src/pages/ThankYouPage.tsx`):
 
@@ -395,7 +385,7 @@ CARTROVER_API_KEY=...
 npm run dev
 ```
 
-This starts Vite with the `@cloudflare/vite-plugin`, which runs the full Worker runtime locally alongside the SPA — no separate Wrangler process needed. The app is available at `http://localhost:5173`.
+This starts Vite with the `@cloudflare/vite-plugin`, which runs the full Worker runtime locally alongside the SPA — no separate Wrangler process needed. The app is available at `http://localhost:5174`.
 
 To preview the production build locally instead:
 
@@ -427,8 +417,7 @@ npm run preview    # Builds then serves the production bundle
 ├── src/
 │   ├── components/
 │   │   ├── checkout/            ★ Checkout-page section components
-│   │   │   └── primitives/        SectionCard, PriceRow, SecureBadge, GuaranteeBadge
-│   │   ├── product/               Product-page components
+│   │   │   └── primitives/        SectionCard, PriceRow
 │   │   ├── thank-you/             Thank-you-page components
 │   │   ├── auth/                  Login / auth UI components
 │   │   ├── dashboard/             Shared dashboard shell components
@@ -444,7 +433,6 @@ npm run preview    # Builds then serves the production bundle
 │   ├── mutation-options/          TanStack Query mutation option factories
 │   ├── pages/                     Route-level pages
 │   │   ├── CheckoutPage.tsx
-│   │   ├── ProductPage.tsx
 │   │   ├── ThankYouPage.tsx
 │   │   ├── LoginPage.tsx
 │   │   ├── OrderPage.tsx
