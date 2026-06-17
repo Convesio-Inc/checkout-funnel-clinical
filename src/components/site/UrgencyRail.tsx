@@ -1,13 +1,12 @@
 /**
  * UrgencyRail
  * -----------------------------------------------------------------------------
- * Sticky top rail across all storefront pages. A forest row (live viewers,
- * shipping/tested assurances, a "reserved for" countdown) sits above an amber
- * sub-bar reinforcing the free-bottle deadline. Self-contained: owns its own
- * countdown + viewer counter.
+ * Sticky AG1 top rail across the storefront: brand mark on the left; live
+ * "N at checkout", a secure marker, and a "Reserved mm:ss" countdown on the
+ * right. Self-contained — owns its own countdown + viewer counter.
  *
  * Markers:
- *   - root            data-section="urgency-rail"
+ *   - root            data-section="top-rail"
  *   - reserved timer  data-slot="reserved-timer"
  * -----------------------------------------------------------------------------
  */
@@ -21,43 +20,30 @@ export function UrgencyRail() {
 
   return (
     <div
-      data-section="urgency-rail"
-      className="sticky top-0 z-40 gloss-forest text-bone"
+      data-section="top-rail"
+      className="sticky top-0 z-40 bg-sand border-b border-line2"
     >
-      <div className="max-w-[1180px] mx-auto px-5 py-2.5 flex items-center justify-between gap-6 text-[12.5px]">
-        <div className="flex items-center gap-2.5">
-          <span className="relative inline-flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-amber3 livedot" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-amber3" />
+      <div className="max-w-[1080px] mx-auto px-6 h-12 flex items-center justify-between text-[12px]">
+        <a href="/" className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-md bg-ink text-paper grid place-items-center">
+            <Icon.Beaker className="w-4 h-4" />
+          </div>
+          <span className="font-semibold tracking-[0.08em] text-ink">MERIDIAN</span>
+          <span className="hidden sm:inline text-ink3 smallcaps">Daily greens</span>
+        </a>
+        <div className="flex items-center gap-5">
+          <span className="hidden md:flex items-center gap-2 text-ink3">
+            <span className="livedot inline-flex w-1.5 h-1.5 rounded-full bg-rust" />
+            <span><span className="num text-ink">{viewers}</span> at checkout</span>
           </span>
-          <span className="num tabular-nums font-medium">{viewers}</span>
-          <span className="text-bone/75">others are viewing this offer right now</span>
-        </div>
-        <div className="hidden md:flex items-center gap-2 text-bone/70">
-          <Icon.Truck className="w-4 h-4" />
-          <span>Free U.S. shipping on every order</span>
-          <span className="opacity-40">·</span>
-          <Icon.Leaf className="w-4 h-4" />
-          <span>3rd-party tested</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-bone/70 hidden sm:inline">Reserved for</span>
-          <span
-            data-slot="reserved-timer"
-            className="num font-semibold tracking-[0.04em] gloss-pill px-2.5 py-1 rounded-[3px]"
-          >
-            <span>{mm}</span>
-            <span className="tick">:</span>
-            <span>{ss}</span>
+          <span className="hidden sm:flex items-center gap-1.5 text-ink3 smallcaps">
+            <Icon.Lock className="w-3.5 h-3.5" /> Secure
           </span>
-        </div>
-      </div>
-      <div className="bg-amber text-ink relative">
-        <div className="max-w-[1180px] mx-auto px-5 py-1.5 text-[12px] font-medium tracking-[0.01em] flex items-center justify-center gap-2 text-center">
-          <span className="uppercase tracking-[0.14em] text-[10.5px] font-semibold">Hurry —</span>
-          <span>
-            Order in the next <span className="num font-semibold">{mm}:{ss}</span> to guarantee your{" "}
-            <span className="font-semibold">2 FREE bottles</span> with the 3-bottle bundle.
+          <span className="num text-[12.5px] text-ink">
+            <span className="text-ink3 smallcaps mr-2">Reserved</span>
+            <span data-slot="reserved-timer">
+              {mm}<span className="tick text-ink3">:</span>{ss}
+            </span>
           </span>
         </div>
       </div>
