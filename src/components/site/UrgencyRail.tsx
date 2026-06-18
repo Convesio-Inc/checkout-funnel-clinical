@@ -21,7 +21,7 @@ export function UrgencyRail() {
   return (
     <div
       data-section="top-rail"
-      className="sticky top-0 z-40 bg-sand border-b border-line2"
+      className="sticky top-0 z-40 bg-paper border-b border-line2"
     >
       <div className="max-w-[1080px] mx-auto px-6 h-12 flex items-center justify-between text-[12px]">
         <a href="/" className="flex items-center gap-2.5">
@@ -33,7 +33,7 @@ export function UrgencyRail() {
         </a>
         <div className="flex items-center gap-5">
           <span className="hidden md:flex items-center gap-2 text-ink3">
-            <span className="livedot inline-flex w-1.5 h-1.5 rounded-full bg-rust" />
+            <span className="livedot inline-flex w-1.5 h-1.5 rounded-full bg-cobalt" />
             <span><span className="num text-ink">{viewers}</span> at checkout</span>
           </span>
           <span className="hidden sm:flex items-center gap-1.5 text-ink3 smallcaps">

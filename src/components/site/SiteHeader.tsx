@@ -19,7 +19,7 @@ export function SiteHeader() {
       <div className="max-w-[1180px] mx-auto px-5 py-4 flex items-center justify-between">
         {/* Logo + wordmark */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full gloss-forest text-bone flex items-center justify-center">
+          <div className="w-9 h-9 rounded-full gloss-forest text-paper flex items-center justify-center">
             <Icon.Leaf className="w-4 h-4" />
           </div>
           <div className="leading-tight">
