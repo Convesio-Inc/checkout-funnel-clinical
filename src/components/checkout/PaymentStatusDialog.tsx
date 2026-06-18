@@ -142,7 +142,7 @@ export function PaymentStatusDialog({
           <>
             <div
               data-slot="payment-status-icon"
-              className="mx-auto flex size-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-500"
+              className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#eaf0ff] text-cobalt"
             >
               <ClockIcon className="size-6" />
             </div>
