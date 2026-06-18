@@ -106,16 +106,11 @@ export function BundleSelector({
           </button>
           <button
             type="button"
-            onClick={() => onSubscribeChange(true)}
-            className={
-              "flex-1 py-2.5 transition flex items-center justify-center gap-2 " +
-              (subscribe ? "gloss-mint" : "text-ink3 hover:text-ink")
-            }
+            disabled
+            className="flex-1 py-2.5 flex items-center justify-center gap-2 text-ink3 opacity-50 cursor-not-allowed"
           >
             Subscribe
-            <span className={"num text-[10.5px] font-semibold " + (subscribe ? "text-white/85" : "text-mint")}>
-              −20%
-            </span>
+            <span className="num text-[10.5px] font-semibold text-mint">−20%</span>
           </button>
         </div>
       </div>

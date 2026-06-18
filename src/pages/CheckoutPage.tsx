@@ -48,7 +48,7 @@ export function CheckoutPage() {
   const [selectedBundle, setSelectedBundle] = useState<Bundle>(
     BUNDLES.find((b) => b.isMostChosen) ?? BUNDLES[0],
   );
-  const [subscribe, setSubscribe] = useState(true);
+  const [subscribe, setSubscribe] = useState(false);
   const pricing = bundlePricing(selectedBundle, subscribe);
 
   const componentRef = useRef<ConvesioPayComponent | null>(null);
