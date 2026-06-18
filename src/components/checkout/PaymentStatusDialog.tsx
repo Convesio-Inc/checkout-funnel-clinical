@@ -119,7 +119,7 @@ export function PaymentStatusDialog({
           <>
             <div
               data-slot="payment-status-icon"
-              className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500"
+              className="mx-auto flex size-12 items-center justify-center rounded-full bg-mint/10 text-mint"
             >
               <CheckCircle2Icon className="size-6" />
             </div>
