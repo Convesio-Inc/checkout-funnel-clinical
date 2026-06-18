@@ -26,10 +26,10 @@ function PlanCard({
   onSelect: () => void;
 }) {
   const featured = Boolean(bundle.isMostChosen);
-  const { pricePerBottle, listMinor, totalMinor } = bundlePricing(bundle, subscribe);
+  const { pricePerBottle, listMinor, totalMinor, savingsMinor } = bundlePricing(bundle, subscribe);
   const list = listMinor / 100;
   const total = totalMinor / 100;
-  const save = bundle.savingsMinor ? bundle.savingsMinor / 100 : 0;
+  const save = savingsMinor / 100;
 
   return (
     <button

@@ -2,7 +2,7 @@
  * OrderSummaryCard
  * -----------------------------------------------------------------------------
  * AG1 summary footer at the bottom of the checkout card: line item, free
- * shipping, bundle savings, the grand total, and the lime pay CTA (idle / busy
+ * shipping, bundle savings, the grand total, and the ink-black pay CTA (idle / busy
  * / done states wired to the real payment status).
  *
  * Marker: data-section="order-summary"
