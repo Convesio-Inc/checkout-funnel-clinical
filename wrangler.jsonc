@@ -10,18 +10,11 @@
 	"assets": {
 		"not_found_handling": "single-page-application",
 		"run_worker_first": [
-			"/auth/*",
 			"/config",
 			"/payments",
-			"/upsell-payment",
-			"/list-payments",
-			"/list-orders",
 			"/verify-token",
 			"/issue-token",
-			"/poll-payment",
-			"/search-orders",
-			"/users",
-			"/users/*"
+			"/poll-payment"
 		]
 	},
 	"observability": {
@@ -35,11 +28,7 @@
 		"required": [
 			"CPAY_API_KEY",
 			"CPAY_SECRET",
-			"CPAY_INTEGRATION",
-			"CARTROVER_API_USER",
-			"CARTROVER_API_KEY"
-			// Missing from .dev.vars — add when configuring admin auth + email:
-			// "AUTH_SALT", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "SENDGRID_API_KEY"
+			"CPAY_INTEGRATION"
 		]
 	},
 	/**
@@ -62,24 +51,4 @@
 	"vars": {
 		"CPAY_ENVIRONMENT": "test"
 	},
-	/**
-	 * Service Bindings (communicate between multiple Workers)
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
-	 */
-	// Run `wrangler d1 create fulfillment-checkout-v5` and paste the returned
-	// database_id below before the first `npm run deploy`. Local `npm run preview`
-	// works without it (uses a local SQLite simulation).
-	"d1_databases": [
-		{
-			"binding": "DB",
-			"database_name": "fulfillment-checkout-v5",
-			"database_id": "06d464d5-dd62-48a2-9386-4d6a0e04321e",
-			"migrations_dir": "worker/db/migrations"
-		}
-	],
-	"triggers": {
-		"crons": [
-			"0 */2 * * *"
-		]
-	}
 }

@@ -9,7 +9,7 @@
  * -----------------------------------------------------------------------------
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 
 import { Icon } from "@/components/icons";
 import { type Bundle, bundlePricing } from "@/components/checkout/bundles";
@@ -35,20 +35,26 @@ export function OrderSummaryCard({
 }: OrderSummaryCardProps) {
   const disabled = payDisabled || payLoading;
 
-  const [ctaState, setCtaState] = useState<"idle" | "busy" | "done">("idle");
+  const [showDone, setShowDone] = useState(false);
   const prevLoading = useRef(false);
 
   useEffect(() => {
-    if (payLoading) {
-      setCtaState("busy");
-      prevLoading.current = true;
-    } else if (prevLoading.current) {
+    if (!payLoading && prevLoading.current) {
       prevLoading.current = false;
-      setCtaState("done");
-      const t = setTimeout(() => setCtaState("idle"), 2200);
+      setShowDone(true);
+      const t = setTimeout(() => setShowDone(false), 2200);
       return () => clearTimeout(t);
     }
+    if (payLoading) {
+      prevLoading.current = true;
+    }
   }, [payLoading]);
+
+  const ctaState = useMemo<"idle" | "busy" | "done">(() => {
+    if (payLoading) return "busy";
+    if (showDone) return "done";
+    return "idle";
+  }, [payLoading, showDone]);
 
   const pricing = bundlePricing(selectedBundle, subscribe);
   const total = pricing.totalMinor;
