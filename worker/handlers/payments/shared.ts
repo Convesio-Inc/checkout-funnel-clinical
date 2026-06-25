@@ -16,10 +16,6 @@ export function singlePaymentEndpoint(
   return `${CPAY_API_HOSTS[environment]}/v1/payments/${encodeURIComponent(paymentId)}`;
 }
 
-export function storedCardEndpoint(environment: 'test' | 'live'): string {
-  return `${CPAY_API_HOSTS[environment]}/v1/payments/stored-card`;
-}
-
 export function resolveEnvironment(env: Env): 'test' | 'live' {
   return env.CPAY_ENVIRONMENT === 'live' ? 'live' : 'test';
 }
@@ -71,13 +67,6 @@ export interface UpstreamPaymentResponse {
   error?: boolean;
   message?: string;
   [key: string]: unknown;
-}
-
-export interface CardOnFilePaymentRequestBody {
-  order_id: number;
-  amount: number;
-  currency: string;
-  lineItems?: Array<Record<string, unknown>>;
 }
 
 export function requireSecret(env: Env): Response | string {

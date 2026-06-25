@@ -14,12 +14,9 @@
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 
 export interface CheckoutTokenPayload extends JWTPayload {
-  // Local orders.id — primary identifier for the thank-you flow.
-  order_id: number;
-  // cpay_id of the most recent payment on the order. Still needed because
-  // /poll-payment and /issue-token call ConvesioPay upstream by cpay id.
   payment_id: string;
   customer_id: string;
+  order_number: string;
   status: string;
 }
 
