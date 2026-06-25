@@ -1,7 +1,6 @@
-# Convesio Fulfillment Checkout V5
+# ConvesioPay Stateless Checkout
 
 A production-ready **single-page application** that renders an **integrated ConvesioPay checkout**, ready to deploy on [Convesio Static Sites](https://convesio.com).
-It features native integrations with FullStack CartRover API + SendGrid API, so every 2 hours orders are synced with CartRover, and the customers are emailed through SendGrid.
 
 Built with **React 19**, **TypeScript**, **Vite**, **Tailwind CSS v4** and **shadcn/ui**, served from a **Cloudflare Worker** that proxies payment calls server-side so your API keys never leave the server.
 
@@ -9,21 +8,20 @@ Built with **React 19**, **TypeScript**, **Vite**, **Tailwind CSS v4** and **sha
 
 ## Table of Contents
 
-- [Convesio Fulfillment Checkout V5](#convesio-fulfillment-checkout-v5)
+- [ConvesioPay Stateless Checkout](#convesiopay-stateless-checkout)
   - [Table of Contents](#table-of-contents)
   - [Features](#features)
   - [How it Works](#how-it-works)
   - [Prerequisites](#prerequisites)
-  - [| **CartRover account** | Order fulfillment sync (`CARTROVER_API_USER` + `CARTROVER_API_KEY`) | cartrover.com |](#-cartrover-account--order-fulfillment-sync-cartrover_api_user--cartrover_api_key--cartrovercom-)
   - [Quick Start](#quick-start)
     - [1. Get the code](#1-get-the-code)
-    - [2. Create the D1 database](#2-create-the-d1-database)
-    - [3. Deploy to Convesio Static Sites](#3-deploy-to-convesio-static-sites)
-    - [4. Create a ConvesioPay integration](#4-create-a-convesiopay-integration)
-    - [5. Set up Google OAuth](#5-set-up-google-oauth)
-    - [6. Configure all environment variables](#6-configure-all-environment-variables)
-    - [7. Verify the checkout](#7-verify-the-checkout)
+    - [2. Deploy to Convesio Static Sites](#2-deploy-to-convesio-static-sites)
+    - [3. Create a ConvesioPay integration](#3-create-a-convesiopay-integration)
+    - [4. Configure environment variables](#4-configure-environment-variables)
+    - [5. Verify the checkout](#5-verify-the-checkout)
   - [Environment Variables](#environment-variables)
+  - [Worker Routes](#worker-routes)
+  - [Payment Flow](#payment-flow)
   - [Testing the Checkout](#testing-the-checkout)
   - [Customization](#customization)
     - [1. Copy, prices and images — edit the component directly](#1-copy-prices-and-images--edit-the-component-directly)
@@ -31,15 +29,13 @@ Built with **React 19**, **TypeScript**, **Vite**, **Tailwind CSS v4** and **sha
     - [3. Layout and behavior — section components](#3-layout-and-behavior--section-components)
   - [Local Development](#local-development)
     - [1. Install dependencies](#1-install-dependencies)
-    - [2. Apply local database migrations](#2-apply-local-database-migrations)
-    - [3. Configure local secrets](#3-configure-local-secrets)
-    - [4. Run the dev server](#4-run-the-dev-server)
+    - [2. Configure local secrets](#2-configure-local-secrets)
+    - [3. Run the dev server](#3-run-the-dev-server)
   - [Available Scripts](#available-scripts)
   - [Project Structure](#project-structure)
   - [Going Live](#going-live)
   - [Security Notes](#security-notes)
   - [Troubleshooting](#troubleshooting)
-  - [Deploy checklist (v5 — not yet deployed)](#deploy-checklist-v5--not-yet-deployed)
   - [Resources](#resources)
 
 ---
@@ -47,57 +43,44 @@ Built with **React 19**, **TypeScript**, **Vite**, **Tailwind CSS v4** and **sha
 ## Features
 
 - **Full checkout flow out of the box** — product page, checkout form (customer + shipping + payment), order summary and a "Thank You" confirmation page.
-- **Native upsell functionality** — show customers upsell offers with one-click payment to add products on their previous orders.
-- **FullStack CartRover Integration** — sync the processed orders periodically with FullStack CartRover.
-- **Email orders to customers automatically** — once orders are processed and synced, an email will be sent each customer via SendGrid.
-- **Admin dashboard** — authenticated admin dashboard to check and filter all processed orders.
+- **3D Secure (3DS) support** — the checkout automatically handles 3DS bank challenges via sessionStorage and resumes the flow on return, polling for the final payment status.
 - **Secure by design** — your secret keys live only in the Cloudflare Worker; the browser never sees them.
-- **Re-skinnable in minutes** — copy, prices and images live inline in the component that renders them; each component starts with a JSDoc header so you can find and edit the right file instantly. Brand color is driven by a handful of CSS variables.
+- **Re-skinnable in minutes** — copy, prices and images live inline in the component that renders them; each component starts with a JSDoc header so you can find and edit the right file instantly. Brand colors are driven by a handful of CSS variables.
 - **Sandbox-first** — ships in test mode so you can iterate safely before going live with a single environment-variable change.
 - **Modern stack** — React 19, TypeScript, Vite, Tailwind v4, shadcn/ui components, React Router 7.
+- **Stateless** — no database, no user accounts, no backend state—just a checkout Worker and an SPA.
 
 ---
 
 ## How it Works
 
 ```text
-                 ┌────────────────────────────┐
-                 │   Browser (SPA)            │
-                 │   React + ConvesioPay SDK  │
-                 └───────────┬────────────────┘
-                             │  1. GET /config          (client key)
-                             │  2. POST /payments       (tokenized card)
-                             │  3. POST /issue-token    (3DS resume)
-                             │  4. POST /verify-token   (JWT → order context)
-                             │  5. POST /poll-payment   (async confirmation)
-                             │  6. POST /upsell-payment (stored card)
+                 ┌────────────────────────┐
+                 │   Browser (SPA)        │
+                 │   React + ConvesioPay  │
+                 │   iframe SDK           │
+                 └───────────┬────────────┘
+                             │  1. GET  /config        (public client key)
+                             │  2. POST /payments      (tokenized card)
+                             │  3. POST /verify-token  (decode thank-you JWT)
+                             │  4. POST /issue-token   (mint JWT after 3DS)
+                             │  5. POST /poll-payment  (poll payment status)
                              ▼
-                 ┌────────────────────────────┐
-                 │  Cloudflare Worker         │
-                 │  worker/index.ts           │
-                 │  Holds CPAY_SECRET +       │
-                 │  CPAY_API_KEY              │
-                 └──────┬─────────────┬───────┘
-                        │             │  Signed, server-to-server
-                        ▼             ▼
-          ┌─────────────────┐  ┌──────────────────┐
-          │  Cloudflare D1  │  │  ConvesioPay API  │
-          │  (orders +      │  │  sandbox / live   │
-          │   payments DB)  │  └──────────────────┘
-          └────────┬────────┘
-                   │  cron (every 2 h)
-                   ▼
-          ┌─────────────────┐
-          │  CartRover      │
-          │  (fulfillment)  │
-          └─────────────────┘
+                 ┌────────────────────────┐
+                 │  Cloudflare Worker     │
+                 │  worker/index.ts       │
+                 │  Holds CPAY_SECRET +   │
+                 │  CPAY_API_KEY          │
+                 └───────────┬────────────┘
+                             │  Signed, server-to-server
+                             ▼
+                 ┌────────────────────────┐
+                 │  ConvesioPay API       │
+                 │  sandbox  /  live      │
+                 └────────────────────────┘
 ```
 
-1. **Card tokenization** — The browser loads the ConvesioPay SDK iframe (`/config` returns the client key). The customer's card is tokenized client-side; raw card data never touches the Worker.
-2. **Payment creation** (`POST /payments`) — The Worker finds-or-creates an order in the D1 database, forwards the tokenized card to the ConvesioPay API, and persists the result. On success it signs a **JWT** containing the order/payment IDs and redirects the browser to `/thank-you?token=…`.
-3. **3DS challenges** — If the card issuer requires a challenge, ConvesioPay returns a redirect URL. The Worker pre-signs a *marker* JWT (order ID only, no payment ID yet) as the return URL. After the customer completes the challenge they land back on `/thank-you`; the browser calls `/issue-token` to mint the real JWT, then `/verify-token` to fetch order context.
-4. **Async polling** — Payments still in a `Pending` state are polled every 5 seconds via `/poll-payment` until a terminal status is received.
-5. **Fulfillment sync** — A Cloudflare scheduled task runs every 2 hours to push completed orders to CartRover, the external fulfillment service.
+The SPA tokenizes the card with the ConvesioPay SDK iframe, then the Worker validates the payload and forwards it to ConvesioPay with the secret credentials. On a standard payment the customer is redirected to the Thank You page via a signed JWT in the URL. On a **3DS challenge** the SPA stashes the payment id in `sessionStorage`, sends the user to the bank's verify-customer page, and on return calls `/issue-token` to mint a thank-you JWT, then `/poll-payment` to track the final status.
 
 ---
 
@@ -109,9 +92,6 @@ Before you start, make sure you have:
 |---|---|---|
 | **Convesio account** | Host and deploy the Static Site | [console.convesio.com/register](https://console.convesio.com/register) |
 | **ConvesioPay account** | Accept payments through the checkout | [convesiopay.com/auth/sign-up](https://convesiopay.com/auth/sign-up) |
-| **Google Cloud project** | OAuth 2.0 credentials for Google login (`GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET`) | [console.cloud.google.com](https://console.cloud.google.com) |
-| **SendGrid account** | Transactional email (`SENDGRID_API_KEY`) | [sendgrid.com](https://sendgrid.com) |
-| **CartRover account** | Order fulfillment sync (`CARTROVER_API_USER` + `CARTROVER_API_KEY`) | [cartrover.com](https://cartrover.com) |
 ---
 
 ## Quick Start
@@ -121,84 +101,31 @@ Before you start, make sure you have:
 Fork or clone this repository into your own GitHub account:
 
 ```bash
-git clone https://github.com/Convesio-Inc/fulfillment-checkout-v5.git
-cd fulfillment-checkout-v5
+git clone https://github.com/Convesio-Inc/checkout-funnel-v5.git
+cd checkout-funnel-v5
 npm install
 ```
 
-### 2. Create the D1 database
+### 2. Deploy to Convesio Static Sites
 
-The Worker persists orders and payments in a Cloudflare D1 database. Create one and apply the migrations:
+From your Convesio console, create a new Static Site pointing at your forked repository. Convesio will build and host it automatically. You'll get a public URL — keep it handy for the next step.
 
-```bash
-wrangler d1 create fulfillment-checkout-v5
-```
-
-Copy the `database_id` printed by the command and update `wrangler.jsonc`:
-
-```jsonc
-"d1_databases": [
-  {
-    "binding": "DB",
-    "database_name": "fulfillment-checkout-v5",
-    "database_id": "<your-database-id>"
-  }
-]
-```
-
-Then apply migrations:
-
-```bash
-wrangler d1 migrations apply fulfillment-checkout-v5
-```
-
-### 3. Deploy to Convesio Static Sites
-
-From your Convesio console, create a new Static Site pointing at your forked repository. Convesio will build and host it automatically. You'll get a public URL — keep it handy for the next two steps.
-
-### 4. Create a ConvesioPay integration
+### 3. Create a ConvesioPay integration
 
 1. Log in to the [ConvesioPay Sandbox console](https://dev.convesiopay.com/) (or [ConvesioPay's Live Console](https://convesiopay.com/) for live environments).
 2. Navigate to **Advanced Settings → [Connected Integrations](https://dev.convesiopay.com/advanced-settings/connected-integrations)** and click **CREATE NEW INTEGRATION**. Give it a name of your choice — you'll need it later as `CPAY_INTEGRATION`.
 3. Copy the **integration secret key** that gets generated. This will be your `CPAY_SECRET`.
 4. Go to **Advanced Settings → [Get Your API Key](https://dev.convesiopay.com/advanced-settings/api-key)** and copy your API key. This will be your `CPAY_API_KEY`.
 
-### 5. Set up Google OAuth
+### 4. Configure environment variables
 
-1. Open [Google Cloud Console](https://console.cloud.google.com) and create (or select) a project.
-2. Go to **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**. Choose **Web application**.
-3. Under **Authorized redirect URIs**, add:
-   ```
-   https://<your-static-site-url>/auth/google/callback
-   ```
-4. Copy the **Client ID** (`GOOGLE_OAUTH_CLIENT_ID`) and **Client Secret** (`GOOGLE_OAUTH_CLIENT_SECRET`).
+In your Convesio Static Site settings, add the following variables (see [Environment Variables](#environment-variables) below for details):
 
-### 6. Configure all environment variables
+- `CPAY_INTEGRATION`
+- `CPAY_SECRET`
+- `CPAY_API_KEY`
 
-In your Convesio Static Site settings, add every secret listed in [Environment Variables](#environment-variables) below. At minimum:
-
-```bash
-# ConvesioPay
-CPAY_INTEGRATION=...
-CPAY_SECRET=...
-CPAY_API_KEY=...
-
-# Auth
-AUTH_SALT=<random-64-char-hex>   # e.g. openssl rand -hex 32
-
-# Google OAuth
-GOOGLE_OAUTH_CLIENT_ID=...
-GOOGLE_OAUTH_CLIENT_SECRET=...
-
-# SendGrid
-SENDGRID_API_KEY=...
-
-# CartRover
-CARTROVER_API_USER=...
-CARTROVER_API_KEY=...
-```
-
-### 7. Verify the checkout
+### 5. Verify the checkout
 
 Open your Static Site URL and run a test payment using the card numbers from the [Testing the Checkout](#testing-the-checkout) section. If everything is wired up correctly, you'll land on the Thank You page.
 
@@ -206,60 +133,62 @@ Open your Static Site URL and run a test payment using the card numbers from the
 
 ## Environment Variables
 
-All credentials are required. They are injected at runtime into the Cloudflare Worker — the browser never has direct access to them.
+Three credentials are required. They are injected at runtime into the Cloudflare Worker — the browser never has direct access to them.
 
-**ConvesioPay**
+| Variable | Type | Description |
+|---|---|---|
+| `CPAY_INTEGRATION` | secret | Name of the integration you created in the ConvesioPay console. |
+| `CPAY_SECRET` | secret | Server-side integration secret. **Never expose this client-side.** |
+| `CPAY_API_KEY` | secret | ConvesioPay API key used for server-to-server calls. |
+| `CPAY_ENVIRONMENT` | var | `"test"` (default) or `"live"`. Configured in `wrangler.jsonc`. |
 
-| Variable           | Type   | Description                                                                                 |
-| ------------------ | ------ | ------------------------------------------------------------------------------------------- |
-| `CPAY_INTEGRATION` | secret | Name of the integration you created in the ConvesioPay console.                             |
-| `CPAY_SECRET`      | secret | Server-side integration secret. **Never expose this client-side.**                          |
-| `CPAY_API_KEY`     | secret | ConvesioPay API key used for server-to-server calls.                                        |
-| `CPAY_ENVIRONMENT` | var    | `"test"` (default) or `"live"`. Configured in `wrangler.jsonc`.                             |
+> These three secrets are declared in `wrangler.jsonc` under `secrets.required` — Wrangler will refuse to deploy if any are missing. For local development, set them in a `.dev.vars` file at the project root (see [Local Development](#local-development)).
 
-**Authentication**
+---
 
-| Variable                     | Type   | Description                                                                                         |
-| ---------------------------- | ------ | --------------------------------------------------------------------------------------------------- |
-| `AUTH_SALT`                  | secret | Random secret used to hash passwords and sign session tokens. Generate with `openssl rand -hex 32`. |
-| `GOOGLE_OAUTH_CLIENT_ID`     | secret | OAuth 2.0 client ID from Google Cloud Console.                                                      |
-| `GOOGLE_OAUTH_CLIENT_SECRET` | secret | OAuth 2.0 client secret from Google Cloud Console.                                                  |
+## Worker Routes
 
-**Email**
+The Cloudflare Worker exposes exactly five routes:
 
-| Variable           | Type   | Description                                        |
-| ------------------ | ------ | -------------------------------------------------- |
-| `SENDGRID_API_KEY` | secret | SendGrid API key for sending transactional emails. |
+| Route | Method | Purpose |
+|---|---|---|
+| `/config` | GET | Returns the public ConvesioPay client key for SDK initialization. |
+| `/payments` | POST | Accepts a tokenized card, creates a payment via ConvesioPay API, and returns a signed JWT redirect. |
+| `/verify-token` | POST | Decodes a thank-you JWT and returns the order/payment context for the confirmation page. |
+| `/issue-token` | POST | Mints a new JWT after 3DS challenge completion; used to resume the thank-you flow. |
+| `/poll-payment` | POST | Polls ConvesioPay for the current payment status; used to track async/pending payments. |
 
-**Fulfillment**
+---
 
-| Variable             | Type   | Description                                                           |
-| -------------------- | ------ | --------------------------------------------------------------------- |
-| `CARTROVER_API_USER` | secret | CartRover API username. Used with `CARTROVER_API_KEY` for Basic auth. |
-| `CARTROVER_API_KEY`  | secret | CartRover API key. Combined with `CARTROVER_API_USER` for order sync. |
+## Payment Flow
 
-> All secrets are declared in `wrangler.jsonc` under `secrets.required` — Wrangler will refuse to deploy if any are missing. For local development, set them in a `.dev.vars` file at the project root (see [Local Development](#local-development)).
+1. **GET /config** — Browser loads the ConvesioPay SDK iframe and requests the public client key.
+2. **Card tokenization** — Customer submits their card details. The ConvesioPay SDK tokenizes the card client-side; raw card data never leaves the browser.
+3. **POST /payments** — Browser sends the tokenized card to the Worker. The Worker forwards it to ConvesioPay with the secret credentials.
+   - **Success**: Worker signs a JWT containing order and payment IDs, redirects to `/thank-you?token=<JWT>`.
+   - **3DS required**: ConvesioPay returns a 3DS challenge URL. The Worker stores the payment ID in a pre-signed marker JWT and redirects the browser to the bank's challenge page.
+4. **3DS challenge resume** — Customer completes the bank challenge and is redirected back to `/thank-you` with a marker token in sessionStorage.
+5. **POST /issue-token** — Browser calls this to mint the real thank-you JWT once the challenge is complete.
+6. **POST /verify-token** — Browser calls this to decode the JWT and fetch order/payment details for display on the thank-you page.
+7. **POST /poll-payment** — If the payment status is still `Pending`, the thank-you page polls this route every 5 seconds until a terminal status is reached.
 
 ---
 
 ## Testing the Checkout
 
-While `CPAY_ENVIRONMENT` is set to `"test"`, use the official ConvesioPay [test cards](https://docs.convesiopay.com/convesiopay-payment-checkout-integration-api/payments/test-cards) to exercise each payment outcome:
+While `CPAY_ENVIRONMENT` is set to `"test"`, use any of the official ConvesioPay [test cards](https://docs.convesiopay.com/convesiopay-payment-checkout-integration-api/payments/test-cards). A good one to start with:
 
-| Scenario              | What to use                                                         | Expected result                                                                     |
-| --------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| **Immediate success** | `4000 0200 0000 0000` (Visa, exp `03/30`, CVC `737`)                | Redirected to Thank You page with a confirmed order.                                |
-| **3DS challenge**     | `4212 3456 7891 0006` (Visa, exp `03/30`, CVC `737`)                | Redirected to the bank's challenge page; on completion, returned to Thank You page. |
-| **Pending / async**   | Unselect `Await Authorization Result` in your connected integration | Thank You page polls every 5 seconds until a terminal status is received.           |
-| **Failed payment**    | `4000 0200 0000 0000` (Visa, exp `03/29`, CVC `737`)                | `PaymentStatusDialog` surfaces the error in-checkout so the customer can retry.     |
+| Card Number | Type | Expiration | CVC |
+|---|---|---|---|
+| `4000 0200 0000 0000` | Visa | `03/30` | `737` |
 
-> **Note:** All test card numbers, expiry dates, and CVCs for each scenario are listed in the [ConvesioPay test cards reference](https://docs.convesiopay.com/convesiopay-payment-checkout-integration-api/payments/test-cards).
+A successful transaction should land the user on the Thank You page. Failed / pending outcomes are rendered through the in-checkout `PaymentStatusDialog`.
 
 ---
 
 ## Customization
 
-The template is designed to be re-skinned in three layers of increasing depth. **Start from layer 1 and only go deeper if you need to.**
+The template is designed to be re-skinned in two layers of increasing depth. **Start from layer 1 and only go deeper if you need to.**
 
 ### 1. Copy, prices and images — edit the component directly
 
@@ -269,71 +198,61 @@ Each component starts with a JSDoc header that describes what it renders and lis
 
 | What you want to change | File to edit |
 |---|---|
-| Top rail (brand mark, countdown, live viewers) | `src/components/site/UrgencyRail.tsx` |
-| Footer copy | `src/components/site/SiteFooter.tsx` |
-| Checkout section headings, product SKU/name | `src/pages/CheckoutPage.tsx` |
-| Bundle options and pricing | `src/hooks/bundles.ts` |
-| Customer form labels and placeholders | `src/components/checkout/CustomerInfo.tsx` |
-| Shipping form labels, placeholders, and state list | `src/components/checkout/ShippingInfo.tsx` |
-| Payment form loading/error messages | `src/components/checkout/PaymentInfo.tsx` |
-| Order summary + CTA (product, prices, CTA label, footnote) | `src/components/checkout/OrderSummaryCard.tsx` |
-| Thank-you page content, upsell offer | `src/pages/ThankYouPage.tsx` |
+| Top navigation bar (brand name, nav links) | `src/components/site/SiteHeader.tsx` |
+| Checkout info strip (badge + messages) | `src/components/checkout/CheckoutHeader.tsx` |
+| Countdown timer (start time, text) | `src/components/checkout/CheckoutTimer.tsx` |
+| Customer / shipping / payment form labels | `CustomerInfo.tsx` / `ShippingInfo.tsx` / `PaymentInfo.tsx` in `src/components/checkout/` |
+| Country list in shipping form | `COUNTRIES` constant in `src/components/checkout/ShippingInfo.tsx` |
+| Order summary sidebar (product, prices, CTA) | `src/components/checkout/OrderSummaryCard.tsx` |
+| Checkout page title / subtitle | `src/pages/CheckoutPage.tsx` |
+| Product page content | `src/pages/ProductPage.tsx` |
+| Thank-you page content | `src/pages/ThankYouPage.tsx` |
+| Footer | `src/components/site/SiteFooter.tsx` |
 
-Replace placeholder images in `public/` and update the `src` paths in the relevant component.
+Replace the placeholder product and brand images by swapping the files in `public/` and updating the `src` paths in the relevant components above.
 
-> **⚠ Keep payment amount in sync:** `AMOUNT_MINOR` in `src/pages/CheckoutPage.tsx` is the charge sent to ConvesioPay (in cents). It must match the displayed "Total" in `src/components/checkout/OrderSummaryCard.tsx`. Both files have a warning comment as a reminder.
+> **⚠ Keep payment amount in sync:** `amountMinor` in `src/pages/CheckoutPage.tsx` is the charge sent to ConvesioPay (in cents). It must match the displayed "Total" in `src/components/checkout/OrderSummaryCard.tsx`. Both files have a warning comment as a reminder.
 
 ### 2. Brand colors — `src/index.css`
 
-This template ships with the **clinical palette**: Clinical white / cobalt (#1c4dff) / ink (#0a0b0d) / mint (#00a36b).
+Two groups of CSS variables in the `/* === BRAND THEME === */` block drive the colors of the checkout.
 
-All visual tokens live in the `/* === BRAND THEME === */` block near the top of `src/index.css`. The most common ones to change:
+**Brand tokens** (accent colors, focus rings, etc.):
 
 ```css
-/* Core brand */
---brand                  /* primary accent color (badges, icons, highlights) */
---brand-foreground       /* text on --brand backgrounds */
---brand-accent           /* secondary accent */
-
-/* Pay Now button */
---pay-cta-from           /* gradient start */
---pay-cta-to             /* gradient end */
---pay-cta-hover-from     /* hover gradient start */
---pay-cta-hover-to       /* hover gradient end */
---pay-cta-foreground     /* button text color */
-
-/* Typography & shape */
---font-sans              /* body font family */
---font-heading           /* heading font family */
---radius                 /* base border radius (scales --radius-sm … --radius-2xl) */
+--brand                    /* primary brand fill */
+--brand-foreground         /* text/icon color on --brand */
+--brand-accent             /* accent fill (links, focus rings, etc.) */
+--brand-accent-foreground  /* text/icon color on --brand-accent */
 ```
 
-All color values use `oklch()` for perceptual consistency. Swap in any color space you prefer.
+**Pay Now CTA gradient button**:
+
+```css
+--pay-cta-from          /* gradient start */
+--pay-cta-to            /* gradient end */
+--pay-cta-hover-from    /* hover gradient start */
+--pay-cta-hover-to      /* hover gradient end */
+--pay-cta-foreground    /* button text color */
+```
 
 ### 3. Layout and behavior — section components
 
-Each section of every page lives in its own component. Compose or reorder them in the matching page file.
+Each section of the checkout lives in its own component under `src/components/checkout/`:
 
-**Checkout** (`src/pages/CheckoutPage.tsx`):
+- `CheckoutHeader.tsx`
+- `CustomerInfo.tsx`
+- `ShippingInfo.tsx`
+- `PaymentInfo.tsx`
+- `OrderSummaryCard.tsx`
+- `CheckoutTimer.tsx` — urgency countdown timer
+- `PaymentStatusDialog.tsx`
 
-| Component             | File                                              |
-| --------------------- | ------------------------------------------------- |
-| `BundleSelector`      | `src/components/checkout/BundleSelector.tsx`      |
-| `CustomerInfo`        | `src/components/checkout/CustomerInfo.tsx`        |
-| `ShippingInfo`        | `src/components/checkout/ShippingInfo.tsx`        |
-| `PaymentInfo`         | `src/components/checkout/PaymentInfo.tsx`         |
-| `OrderSummaryCard`    | `src/components/checkout/OrderSummaryCard.tsx`    |
-| `PaymentStatusDialog` | `src/components/checkout/PaymentStatusDialog.tsx` |
+Shared layout atoms used by the above live in `src/components/checkout/primitives/` (`PriceRow.tsx`, `SectionCard.tsx`).
 
-**Thank You page** (`src/pages/ThankYouPage.tsx`):
+The global site header and footer are in `src/components/site/` (`SiteHeader.tsx`, `SiteFooter.tsx`) and are rendered by `App.tsx` as layout wrappers around every page.
 
-| Component               | File                                                 |
-| ----------------------- | ---------------------------------------------------- |
-| `ThankYouHeader`        | `src/components/thank-you/ThankYouHeader.tsx`        |
-| `OrderConfirmationCard` | `src/components/thank-you/OrderConfirmationCard.tsx` |
-| `NextStepsCard`         | `src/components/thank-you/NextStepsCard.tsx`         |
-
-Each component starts with a JSDoc header listing its props and the `config.ts` key that feeds it. Components also expose `data-section`, `data-slot`, and `data-field` attributes on their root elements so you can target them with CSS selectors without relying on class names.
+Compose or reorder the checkout components in `src/pages/CheckoutPage.tsx`. Each component starts with a JSDoc header listing its props and `data-*` markers.
 
 ---
 
@@ -345,51 +264,28 @@ Each component starts with a JSDoc header listing its props and the `config.ts` 
 npm install
 ```
 
-### 2. Apply local database migrations
+### 2. Configure local secrets
 
-The dev server runs a local D1 instance automatically, but you need to apply migrations before the first run:
-
-```bash
-wrangler d1 migrations apply fulfillment-checkout-v5 --local
-```
-
-### 3. Configure local secrets
-
-Copy `.env.example` to `.dev.vars` and fill in all credentials. The Worker reads this file in local development:
+Create a `.dev.vars` file at the project root (copy from `.env.example` if present) with the three ConvesioPay credentials:
 
 ```bash
-# ConvesioPay
-CPAY_INTEGRATION=...
-CPAY_SECRET=...
 CPAY_API_KEY=...
-
-# Auth
-AUTH_SALT=<random-64-char-hex>
-GOOGLE_OAUTH_CLIENT_ID=...
-GOOGLE_OAUTH_CLIENT_SECRET=...
-
-# Email
-SENDGRID_API_KEY=...
-
-# Fulfillment
-CARTROVER_API_USER=...
-CARTROVER_API_KEY=...
+CPAY_SECRET=...
+CPAY_INTEGRATION=...
 ```
 
 > `.dev.vars` is git-ignored. Never commit real credentials.
 
-### 4. Run the dev server
+### 3. Run the dev server
 
 ```bash
-npm run dev
+npm run dev        # Vite dev server (SPA only)
 ```
 
-This starts Vite with the `@cloudflare/vite-plugin`, which runs the full Worker runtime locally alongside the SPA — no separate Wrangler process needed. The app is available at `http://localhost:5174`.
-
-To preview the production build locally instead:
+For a full local environment that also runs the Cloudflare Worker:
 
 ```bash
-npm run preview    # Builds then serves the production bundle
+npm run preview    # Builds + serves through Wrangler
 ```
 
 ---
@@ -412,59 +308,27 @@ npm run preview    # Builds then serves the production bundle
 
 ```text
 .
-├── public/                        Static assets (product & brand images)
+├── public/                      Static assets (product & brand images)
 ├── src/
 │   ├── components/
-│   │   ├── checkout/            ★ Checkout-page section components
-│   │   │   └── primitives/        SectionCard, PriceRow
-│   │   ├── thank-you/             Thank-you-page components
-│   │   ├── auth/                  Login / auth UI components
-│   │   ├── dashboard/             Shared dashboard shell components
-│   │   ├── orders/                Order list & drawer components
-│   │   ├── settings/              Settings-page components
-│   │   ├── users/                 User management components
-│   │   └── ui/                    shadcn/ui primitives
-│   ├── context/                   React context definitions (auth, orders, users, drawer)
-│   ├── hooks/                     Feature hooks (checkout, payment, orders, users, auth)
-│   ├── interfaces/                Shared TypeScript interfaces
-│   ├── layouts/                   Page shell layouts (ShopLayout, DashboardLayout)
-│   ├── lib/                       Utilities + ConvesioPay SDK singleton
-│   ├── mutation-options/          TanStack Query mutation option factories
-│   ├── pages/                     Route-level pages
-│   │   ├── CheckoutPage.tsx
-│   │   ├── ThankYouPage.tsx
-│   │   ├── LoginPage.tsx
-│   │   ├── OrderPage.tsx
-│   │   └── UsersPage.tsx
-│   ├── providers/                 Context providers (Auth, Orders, Users, OrderDrawer)
-│   ├── query-options/             TanStack Query query option factories
-│   ├── utils/                     Standalone utility functions
+│   │   ├── checkout/            Checkout-page section components
+│   │   │   └── primitives/      Shared layout atoms (PriceRow, SectionCard)
+│   │   ├── product/             Product-page components
+│   │   ├── site/                Global layout (SiteHeader, SiteFooter)
+│   │   ├── thank-you/           Thank-you-page components
+│   │   └── ui/                  shadcn/ui primitives
+│   ├── hooks/                   Checkout / payment / SDK / thank-you hooks
+│   ├── interfaces/              Global TypeScript ambient declarations
+│   ├── lib/                     Utilities + ConvesioPay SDK singleton
+│   ├── pages/                   Route-level pages (Product, Checkout, ThankYou)
 │   ├── index.css                ★ Brand theme tokens
-│   ├── App.tsx                    Router setup
-│   └── main.tsx                   App entry
+│   ├── App.tsx                  Router + global SiteHeader/SiteFooter layout
+│   └── main.tsx                 App entry
 ├── worker/
-│   ├── db/
-│   │   ├── migrations/            Drizzle SQL migration files
-│   │   ├── schema.ts              D1 database schema
-│   │   ├── client.ts              Drizzle client initialiser
-│   │   ├── payments.ts            Payment & order DB helpers
-│   │   ├── users.ts               User & session DB helpers
-│   │   └── order-search.ts        Full-text order search helper
-│   ├── handlers/
-│   │   ├── auth/                  Auth route handlers (login, register, Google OAuth)
-│   │   ├── config/                /config handler
-│   │   ├── orders/                Order list & search handlers
-│   │   ├── payments/              Payment, upsell, poll & token handlers
-│   │   ├── users/                 User CRUD handlers
-│   │   └── common.ts              Shared handler utilities
-│   ├── services/
-│   │   ├── cart-rover.ts          CartRover fulfillment sync
-│   │   └── sendgrid.ts            SendGrid email client
-│   ├── index.ts                   Worker entry: route dispatch + cron trigger
-│   ├── jwt.ts                     HS256 helpers for checkout redirect tokens
-│   └── env.d.ts                   Cloudflare env bindings type declarations
-├── .env.example                   Template for .dev.vars
-├── wrangler.jsonc                 Cloudflare Worker + D1 + cron configuration
+│   ├── index.ts                 Worker entry: /config, /payments, /verify-token,
+│   │                            /issue-token, /poll-payment routes
+│   └── jwt.ts                   JWT helpers for secure server calls
+├── wrangler.jsonc               Cloudflare Worker configuration
 ├── package.json
 └── README.md
 ```
@@ -475,13 +339,9 @@ npm run preview    # Builds then serves the production bundle
 
 When you're confident the checkout works end-to-end in sandbox:
 
-1. Create a **production** integration in the live [ConvesioPay console](https://convesiopay.com) (not the `dev.` one) and capture its credentials.
-2. In your Google Cloud project, add your live Static Site URL to the **Authorized redirect URIs** of your OAuth client:
-   ```
-   https://<your-live-url>/auth/google/callback
-   ```
-3. Update every secret in your Convesio Static Site settings with live values — ConvesioPay, Google OAuth, SendGrid, and CartRover credentials.
-4. In `wrangler.jsonc`, change:
+1. Create a **production** integration in the live ConvesioPay console (not the `dev.` one) and capture its credentials.
+2. Update your Static Site's environment variables with the **live** `CPAY_*` secrets.
+3. In `wrangler.jsonc`, change:
 
    ```jsonc
    "vars": {
@@ -489,17 +349,15 @@ When you're confident the checkout works end-to-end in sandbox:
    }
    ```
 
-5. Redeploy and process a small real transaction to verify end-to-end.
+4. Redeploy and process a small real transaction to verify.
 
 ---
 
 ## Security Notes
 
 - **Always start in sandbox.** Test thoroughly with the [official test cards](https://docs.convesiopay.com/convesiopay-payment-checkout-integration-api/payments/test-cards) before flipping `CPAY_ENVIRONMENT` to `"live"`.
-- **Never hardcode credentials.** All keys must live in environment variables — never in frontend code or committed files. `.dev.vars` is git-ignored for this reason.
-- **Generate a strong `AUTH_SALT`.** Use `openssl rand -hex 32` and treat it like a private key. Rotating it invalidates all active sessions.
+- **Never hardcode credentials.** All keys must live in environment variables, never in frontend code or committed files.
 - **Never return the `env` object** from the Worker's `fetch` function on any API endpoint — doing so would expose every secret.
-- **Keep Google OAuth redirect URIs tight.** Only add the exact callback path (`/auth/google/callback`) for domains you control.
 - **Keep dependencies up to date** with `npm audit` and regular upgrades.
 
 ---
@@ -507,32 +365,10 @@ When you're confident the checkout works end-to-end in sandbox:
 ## Troubleshooting
 
 **I get a 401 / 403 from `/payments`.**
-Verify `CPAY_SECRET`, `CPAY_API_KEY`, and `CPAY_INTEGRATION` are set as Worker secrets (not plain vars) and match the integration you're targeting.
+Verify `CPAY_SECRET`, `CPAY_API_KEY` and `CPAY_INTEGRATION` are set as Worker secrets (not just plain vars) and match the integration you're pointing at.
 
 **Payment succeeds in sandbox but fails in live.**
 Live integrations require their own distinct credentials — sandbox keys won't work against the live API. Double-check you've created a separate integration in the production console.
-
-**Google login fails with a redirect_uri_mismatch error.**
-The redirect URI in your Google Cloud OAuth client must exactly match `https://<your-site-url>/auth/google/callback`. A trailing slash or wrong domain will cause this error.
-
-**Worker fails to start locally (`missing binding: DB`).**
-Run `wrangler d1 migrations apply fulfillment-checkout-v5 --local` to create and seed the local D1 database before starting the dev server.
-
-**Orders aren't syncing to CartRover.**
-Check that `CARTROVER_API_USER` and `CARTROVER_API_KEY` are set correctly. The sync runs on a 2-hour cron — you can trigger it manually via `wrangler dev` and the scheduled event.
-
-**I edited a component but the page didn't update.**
-Stop and restart the dev server. Vite usually hot-reloads, but some changes can occasionally require a clean restart.
-
----
-
-## Deploy checklist (v5 — not yet deployed)
-
-1. `wrangler d1 create fulfillment-checkout-v5` → copy the returned `database_id`.
-2. Paste it into `wrangler.jsonc` → `d1_databases[0].database_id`.
-3. `npm run db:migrate:remote` to apply migrations to the new D1.
-4. Push secrets (`npm run add-envs` + the auth/email/cartrover secrets listed in Worker secrets).
-5. `npm run deploy`.
 
 ---
 
