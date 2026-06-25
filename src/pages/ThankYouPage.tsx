@@ -5,17 +5,20 @@
  * worker signed on success/pending, verifies it server-side, and drives a
  * state machine via `useThankYouPayment`:
  *
- *   - "verifying"  Amber "Processing Payment" promo banner with a spinner +
- *                  matching "Processing Your Payment" main-card copy, while
- *                  the worker verifies the token.
+ *   - "verifying"  Processing promo banner with a spinner + matching
+ *                  "Processing Your Payment" main-card copy, while the worker
+ *                  verifies the token.
  *   - "pending"    Same promo banner and main-card copy as "verifying" — the
  *                  hook polls `/poll-payment` every 5s until the upstream
  *                  status flips to succeeded or failed.
- *   - "succeeded"  Forest "Order Confirmed" promo banner + "Thank You for
- *                  Your Order" main-card copy, plus order details and the
- *                  receipt sidebar.
+ *   - "succeeded"  "Order Confirmed" promo banner + "Thank You for Your Order"
+ *                  main-card copy, plus order details and the receipt sidebar.
  *   - "failed"     Single failure card (no banner, no summary) pointing the
  *                  user back to the checkout to retry.
+ *
+ * The receipt is rendered from static product/summary constants — the worker
+ * is stateless and only returns the decoded token payload (no persisted line
+ * items).
  *
  * Markers:
  *   - page root            data-page="thank-you"
@@ -25,7 +28,6 @@
  * -----------------------------------------------------------------------------
  */
 
-import { useState } from "react";
 import { useSearchParams } from "react-router";
 
 import { Icon } from "@/components/icons";
@@ -33,13 +35,10 @@ import { PriceRow } from "@/components/checkout/primitives/PriceRow";
 import { SectionCard } from "@/components/checkout/primitives/SectionCard";
 import { useThankYouPayment } from "@/hooks/useThankYouPayment";
 import { Spinner } from "@/components/ui/spinner";
-import { UpsellOfferBanner, type UpsellProductConfig } from "@/components/thank-you/UpsellOfferBanner";
-import { UpsellCheckoutModal } from "@/components/thank-you/UpsellCheckoutModal";
 
-// Product shown in the receipt when no order items are returned yet.
+// Product shown in the receipt.
 const PRODUCT = {
   name: "Daily Greens Complex",
-  sku: "1234567890",
   salePrice: "$49.00",
   image: { src: "/product-summary-image.jpeg", alt: "Daily Greens Complex product photo" },
 };
@@ -65,75 +64,28 @@ const THANK_YOU = {
   },
 };
 
-// Optional upsell shown after a successful checkout. Set to null to disable.
-const UPSELL_PRODUCT: UpsellProductConfig | null = {
-  name: "Boomsilk®",
-  sku: "BOOMSILK-UPSELL",
-  image: { src: "/product-summary-image.jpeg", alt: "Boomsilk product photo" },
-  salePrice: "$51.20",
-  regularPrice: "$64.00",
-  discountLabel: "-20%",
-  upsellMinutes: 10,
-  amountMinor: 5120,
-  currency: "USD",
-};
-
-// Map known SKUs back to display copy + thumbnail.
-const SKU_DISPLAY: Record<
-  string,
-  { name: string; image: { src: string; alt: string } }
-> = {
-  [PRODUCT.sku]: {
-    name: PRODUCT.name,
-    image: PRODUCT.image,
-  },
-  ...(UPSELL_PRODUCT
-    ? {
-        [UPSELL_PRODUCT.sku]: {
-          name: UPSELL_PRODUCT.name,
-          image: UPSELL_PRODUCT.image,
-        },
-      }
-    : {}),
-};
-
-function formatMoney(amountMinor: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-    }).format(amountMinor / 100);
-  } catch {
-    return `${(amountMinor / 100).toFixed(2)} ${currency}`;
-  }
-}
-
 export function ThankYouPage() {
   const product = PRODUCT;
   const summary = SUMMARY;
   const thankYou = THANK_YOU;
-  const upsellProduct = UPSELL_PRODUCT;
-  const [isUpsellModalOpen, setIsUpsellModalOpen] = useState(false);
 
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
-  const orderIdHintRaw = searchParams.get("orderId");
-  const orderIdHint =
-    orderIdHintRaw && Number.isFinite(Number(orderIdHintRaw))
-      ? Number(orderIdHintRaw)
-      : null;
-  const { state, payload, context, error, refreshOrderContext } =
-    useThankYouPayment({
-      token,
-      orderIdHint,
-    });
+  // ConvesioPay may append `?paymentId=` to the return URL after a 3DS
+  // challenge. If it does, we use it to mint a thank-you JWT via
+  // `/issue-token`; if not, the hook falls back to the sessionStorage entry
+  // that `useCheckoutPayment` wrote before the handoff.
+  const paymentIdHint = searchParams.get("paymentId");
+  const { state, payload, error } = useThankYouPayment({
+    token,
+    paymentIdHint,
+  });
 
   const isFailed = state === "failed";
   const isProcessing = state === "pending" || state === "verifying";
-  const orderNumber =
-    typeof payload?.order_id === "number"
-      ? `#${payload.order_id}`
-      : "#CV-302948";
+  const orderNumber = payload?.order_number
+    ? `#${payload.order_number}`
+    : "#CV-302948";
   const formattedDate = new Intl.DateTimeFormat("en-US", {
     month: "long",
     day: "numeric",
@@ -149,23 +101,6 @@ export function ThankYouPage() {
     ? "Hang tight — your payment is going through a final review. This page will update automatically as soon as it clears."
     : "Your payment was processed successfully.";
   const includedLabel = `${product.name}${summary.includedProductSuffix ? ` ${summary.includedProductSuffix}` : ""}`;
-
-  const orderItems = context?.items ?? [];
-  const hasOrderItems = orderItems.length > 0;
-  const hasPendingLineCharges = orderItems.some((item) => item.chargePending);
-  const upsellAlreadyInOrder = Boolean(
-    context && upsellProduct &&
-      orderItems.some((item) => item.sku === upsellProduct.sku),
-  );
-  const showUpsell = Boolean(upsellProduct) && !upsellAlreadyInOrder;
-  const receiptCurrency = summary.currency || "USD";
-  const itemsSubtotalMinor = orderItems.reduce(
-    (sum, item) => sum + (item.amountMinor ?? 0),
-    0,
-  );
-  const formattedTotal = hasOrderItems
-    ? formatMoney(itemsSubtotalMinor, receiptCurrency)
-    : summary.total.value;
 
   const ctaClassName =
     "h-12 w-full rounded-full bg-ink text-paper text-[14px] font-semibold tracking-[0.02em] flex items-center justify-center gap-2 transition hover:bg-ink2 cursor-pointer";
@@ -230,22 +165,6 @@ export function ThankYouPage() {
                   </p>
                 </div>
               </section>
-            )}
-
-            {showUpsell && upsellProduct && !isProcessing && (
-              <>
-                <UpsellOfferBanner
-                  upsell={upsellProduct}
-                  onClaim={() => setIsUpsellModalOpen(true)}
-                />
-                <UpsellCheckoutModal
-                  upsell={upsellProduct}
-                  context={context}
-                  open={isUpsellModalOpen}
-                  onClose={() => setIsUpsellModalOpen(false)}
-                  onReceiptRefresh={refreshOrderContext}
-                />
-              </>
             )}
 
             <div
@@ -317,63 +236,21 @@ export function ThankYouPage() {
                     data-slot="included-products-list"
                     className="rounded-[14px] border border-line bg-paper2 p-2.5"
                   >
-                    {hasOrderItems ? (
-                      orderItems.map((item) => {
-                        const display = SKU_DISPLAY[item.sku];
-                        const label = display?.name ?? item.description;
-                        const image = display?.image ?? product.image;
-                        const lineLabel =
-                          item.quantity > 1 ? `${label} × ${item.quantity}` : label;
-                        const rowKey = `${item.sku}-${item.chargePending ? "pending" : "confirmed"}`;
-                        return (
-                          <div
-                            key={rowKey}
-                            data-slot="included-product-item"
-                            data-charge-pending={item.chargePending ? "true" : undefined}
-                            className="my-[7px] flex items-center gap-2.5 text-[13px]"
-                          >
-                            <img
-                              data-slot="included-product-thumb"
-                              src={image.src}
-                              alt={image.alt}
-                              className="h-12 w-12 shrink-0 rounded-[10px] border border-line object-cover"
-                            />
-                            <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-ink">
-                              <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <span>{lineLabel}</span>
-                                {item.chargePending ? (
-                                  <span
-                                    data-slot="charge-pending-badge"
-                                    className="rounded-full border border-line bg-paper2 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rust"
-                                  >
-                                    Charge pending
-                                  </span>
-                                ) : null}
-                              </span>
-                            </span>
-                            <strong data-slot="included-product-price" className="num shrink-0 text-ink">
-                              {formatMoney(item.amountMinor, receiptCurrency)}
-                            </strong>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div
-                        data-slot="included-product-item"
-                        className="my-[7px] flex items-center gap-2.5 text-[13px]"
-                      >
-                        <img
-                          data-slot="included-product-thumb"
-                          src={product.image.src}
-                          alt={product.image.alt}
-                          className="h-12 w-12 shrink-0 rounded-[10px] border border-line object-cover"
-                        />
-                        <span className="flex-1 text-ink">{includedLabel}</span>
-                        <strong data-slot="included-product-price" className="num text-ink">
-                          {product.salePrice}
-                        </strong>
-                      </div>
-                    )}
+                    <div
+                      data-slot="included-product-item"
+                      className="my-[7px] flex items-center gap-2.5 text-[13px]"
+                    >
+                      <img
+                        data-slot="included-product-thumb"
+                        src={product.image.src}
+                        alt={product.image.alt}
+                        className="h-12 w-12 shrink-0 rounded-[10px] border border-line object-cover"
+                      />
+                      <span className="flex-1 text-ink">{includedLabel}</span>
+                      <strong data-slot="included-product-price" className="num text-ink">
+                        {product.salePrice}
+                      </strong>
+                    </div>
                   </div>
 
                   <div
@@ -384,44 +261,17 @@ export function ThankYouPage() {
                   </div>
 
                   <div className="flex flex-col gap-2">
-                    {hasOrderItems
-                      ? orderItems.map((item) => {
-                          const display = SKU_DISPLAY[item.sku];
-                          const label = display?.name ?? item.description;
-                          const lineLabel =
-                            item.quantity > 1 ? `${label} × ${item.quantity}` : label;
-                          const rowKey = `${item.sku}-${item.chargePending ? "pending" : "confirmed"}`;
-                          return (
-                            <PriceRow
-                              key={rowKey}
-                              data-slot="product-line"
-                              data-charge-pending={item.chargePending ? "true" : undefined}
-                              line={{
-                                id: `item-${rowKey}`,
-                                label: item.chargePending
-                                  ? `${lineLabel} (charge pending)`
-                                  : lineLabel,
-                                value: formatMoney(item.amountMinor, receiptCurrency),
-                              }}
-                              className="my-2 text-[14px]"
-                              labelClassName="text-ink2"
-                              valueClassName="font-bold text-ink"
-                            />
-                          );
-                        })
-                      : (
-                          <PriceRow
-                            data-slot="product-line"
-                            line={{
-                              id: "product",
-                              label: product.name,
-                              value: product.salePrice,
-                            }}
-                            className="my-2 text-[14px]"
-                            labelClassName="text-ink2"
-                            valueClassName="font-bold text-ink"
-                          />
-                        )}
+                    <PriceRow
+                      data-slot="product-line"
+                      line={{
+                        id: "product",
+                        label: product.name,
+                        value: product.salePrice,
+                      }}
+                      className="my-2 text-[14px]"
+                      labelClassName="text-ink2"
+                      valueClassName="font-bold text-ink"
+                    />
                     <PriceRow
                       data-slot="shipping-line"
                       line={summary.shipping}
@@ -439,19 +289,12 @@ export function ThankYouPage() {
                       line={{
                         id: "total",
                         label: summary.total.label,
-                        value: formattedTotal,
+                        value: summary.total.value,
                       }}
                       className="mt-3 border-t border-line pt-3 text-[20px]"
                       labelClassName="font-semibold text-ink uppercase tracking-[0.1em] text-[12px]"
                       valueClassName="text-[22px] font-semibold text-ink"
                     />
-
-                    {hasPendingLineCharges ? (
-                      <p data-slot="pending-charges-note" className="text-[11.5px] leading-snug text-ink3">
-                        Items marked "charge pending" are on your receipt; your saved card will be
-                        charged when your order is finalized.
-                      </p>
-                    ) : null}
 
                     <a href={thankYou.receipt.backToHomeHref} data-slot="cta-primary" className={ctaClassName}>
                       {thankYou.receipt.backToHomeLabel}
