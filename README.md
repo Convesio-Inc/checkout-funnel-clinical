@@ -1,4 +1,4 @@
-# ConvesioPay Stateless Checkout
+# Checkout Funnel - Clinical
 
 A production-ready **single-page application** that renders an **integrated ConvesioPay checkout**, ready to deploy on [Convesio Static Sites](https://convesio.com).
 
