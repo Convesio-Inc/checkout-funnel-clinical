@@ -1,3 +1,4 @@
+import type { ReceiptLineItem } from '../../jwt';
 import { json } from '../common';
 
 const CPAY_API_HOSTS = {
@@ -82,4 +83,50 @@ export function requireSecret(env: Env): Response | string {
     );
   }
   return secret;
+}
+
+// The order context embedded in the thank-you JWT so the Store Manager
+// `order.created` notification can be built later — including after a 3DS
+// redirect — without any storage. Amounts stay in minor units (cents).
+export interface ReceiptContext {
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  shipping_address: Record<string, unknown> | null;
+  items: ReceiptLineItem[];
+}
+
+export function buildCustomerPhone(
+  phone: PaymentRequestBody['phone'],
+): string {
+  if (!phone) return '';
+  const prefix = phone.countryCode?.trim() ?? '';
+  const number = phone.number?.trim() ?? '';
+  if (!prefix && !number) return '';
+  return `${prefix} ${number}`.trim();
+}
+
+export function buildReceiptItems(
+  lineItems: PaymentRequestBody['lineItems'],
+): ReceiptLineItem[] {
+  if (!Array.isArray(lineItems)) return [];
+  return lineItems.map((raw) => {
+    const item = raw as Record<string, unknown>;
+    return {
+      sku: String(item.sku ?? ''),
+      description: String(item.description ?? ''),
+      quantity: Number(item.quantity ?? 1),
+      amountMinor: Number(item.amountIncludingTax ?? 0),
+    };
+  });
+}
+
+export function buildReceiptContext(body: PaymentRequestBody): ReceiptContext {
+  return {
+    customer_name: body.name,
+    customer_email: body.email,
+    customer_phone: buildCustomerPhone(body.phone),
+    shipping_address: body.shippingAddress ?? null,
+    items: buildReceiptItems(body.lineItems),
+  };
 }

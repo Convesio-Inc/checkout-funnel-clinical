@@ -1,4 +1,4 @@
-import { signCheckoutToken } from '../../jwt';
+import { signCheckoutToken, verifyCheckoutToken } from '../../jwt';
 import { json, readJson } from '../common';
 import {
   requireSecret,
@@ -10,6 +10,10 @@ import {
 
 interface IssueTokenBody {
   payment_id?: string;
+  /** The marker token the SPA still holds from the 3DS return URL. Used to
+   *  carry the order context (items/shipping/customer) into the freshly
+   *  minted token so the Store Manager notification keeps real data. Optional. */
+  context_token?: string;
 }
 
 /**
@@ -77,6 +81,30 @@ export async function handleIssueToken(
     );
   }
 
+  // Recover the order context from the marker token the SPA still holds, so the
+  // re-minted token stays self-contained (refresh-safe) and the Store Manager
+  // notification keeps real data. Non-fatal if absent.
+  let context: Record<string, unknown> = {};
+  if (body?.context_token) {
+    try {
+      const decoded = await verifyCheckoutToken(body.context_token, env.CPAY_SECRET);
+      // Only accept the context if this is a proper marker token (empty
+      // payment_id) or it was issued for this exact payment. Mismatched
+      // sessions are discarded.
+      if (decoded.payment_id === '' || decoded.payment_id === paymentId) {
+        context = {
+          customer_name: decoded.customer_name,
+          customer_email: decoded.customer_email,
+          customer_phone: decoded.customer_phone,
+          shipping_address: decoded.shipping_address,
+          items: decoded.items,
+        };
+      }
+    } catch {
+      // ignore — the notification falls back to demo values for missing fields.
+    }
+  }
+
   let token: string;
   try {
     // Right after a 3DS challenge, upstream frequently still reports a
@@ -94,6 +122,7 @@ export async function handleIssueToken(
         customer_id: parsed.customerId ?? parsed.customer?.id ?? '',
         order_number: parsed.orderNumber ?? '',
         status: statusForToken,
+        ...context,
       },
       env.CPAY_SECRET,
     );

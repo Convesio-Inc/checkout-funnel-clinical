@@ -1,6 +1,7 @@
 import { signCheckoutToken } from '../../jwt';
 import { json, readJson } from '../common';
 import {
+  buildReceiptContext,
   PENDING_STATUSES,
   type PaymentRequestBody,
   paymentsEndpoint,
@@ -37,6 +38,10 @@ export async function handlePayments(
   const environment = resolveEnvironment(env);
   const origin = new URL(request.url).origin;
   const orderNumber = body.orderNumber ?? crypto.randomUUID();
+  // Captured here so the Store Manager `order.created` notification can be
+  // built from the (tamper-evident) token later — even after a 3DS redirect,
+  // where the original request body is long gone.
+  const receipt = buildReceiptContext(body);
 
   // Pre-sign a "marker" JWT baked into the `returnUrl` we hand to
   // ConvesioPay. On a 3DS branch the bank returns the user to this exact URL,
@@ -51,6 +56,7 @@ export async function handlePayments(
         customer_id: '',
         order_number: orderNumber,
         status: 'AwaitingAction',
+        ...receipt,
       },
       env.CPAY_SECRET,
     );
@@ -150,6 +156,7 @@ export async function handlePayments(
         customer_id: parsed.customerId ?? parsed.customer?.id ?? '',
         order_number: parsed.orderNumber ?? payload.orderNumber,
         status: upstreamStatus,
+        ...receipt,
       },
       env.CPAY_SECRET,
     );

@@ -14,7 +14,8 @@
 			"/payments",
 			"/verify-token",
 			"/issue-token",
-			"/poll-payment"
+			"/poll-payment",
+			"/order-confirmed"
 		]
 	},
 	"observability": {
